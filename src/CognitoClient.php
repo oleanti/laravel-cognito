@@ -7,10 +7,10 @@ use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use OleAnti\LaravelCognito\Exceptions\AccessDeniedException;
-use OleAnti\LaravelCognito\Exceptions\LimitExceededException;
-use OleAnti\LaravelCognito\Exceptions\UserNotFoundException;
-use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
 use OleAnti\LaravelCognito\Exceptions\InvalidParameterException;
+use OleAnti\LaravelCognito\Exceptions\LimitExceededException;
+use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
+use OleAnti\LaravelCognito\Exceptions\UserNotFoundException;
 
 class CognitoClient
 {
@@ -125,10 +125,10 @@ class CognitoClient
     {
         $username = $credentials['email'];
         $password = $credentials['password'];
-        try{
+        try {
 
             $result = $this->initiateauth($username, $password);
-        }catch(CognitoIdentityProviderException $e){
+        }catch(CognitoIdentityProviderException $e) {
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
             switch ($e->getAwsErrorCode()) {
                 case 'NotAuthorizedException':
@@ -141,7 +141,6 @@ class CognitoClient
                     throw $e;
             }
         }
-
 
         if(isset($result['AuthenticationResult'])) {
             $this->authenticationResult = $result['AuthenticationResult'];
@@ -203,20 +202,20 @@ class CognitoClient
         if(count($userAttributes) > 0) {
             $parameters['UserAttributes'] = $userAttributes;
         }
-        try{
+        try {
             $result = $this->client->signUp($parameters);
         }catch(CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
-                case "InvalidPasswordException":
+                case 'InvalidPasswordException':
                     throw ValidationException::withMessages([
                         Cognito::username() => [$e->getAwsErrorMessage()],
                     ]);
                     break;
-                case "UsernameExistsException":
+                case 'UsernameExistsException':
                     throw ValidationException::withMessages([
                         Cognito::username() => trans('validation.unique', [
-                            'attribute' => Cognito::username()
-                        ])
+                            'attribute' => Cognito::username(),
+                        ]),
                     ]);
                     break;
                 default:
@@ -225,9 +224,9 @@ class CognitoClient
 
         }
         $cognito_verified_at = null;
-        if((isset($result['data']['UserConfirmed']) && $result['data']['UserConfirmed']) || config('cognito.autoconfirmusersignup') === true){
+        if((isset($result['data']['UserConfirmed']) && $result['data']['UserConfirmed']) || config('cognito.autoconfirmusersignup') === true) {
             $cognito_verified_at = now();
-        }elseif($result['UserConfirmed'] === false){
+        }elseif($result['UserConfirmed'] === false) {
             $this->codeDeliveryDetails = $result['CodeDeliveryDetails'];
             $this->storeCodeDeliveryDetails();
         }
@@ -235,17 +234,17 @@ class CognitoClient
             'name' => $attributes['name'],
             'email' => $username,
             'cognito_username' => $username,
-            'cognito_verified_at' => $cognito_verified_at
+            'cognito_verified_at' => $cognito_verified_at,
         ]);
         if(config('cognito.autoconfirmusersignup') === true) {
-            try{
+            try {
                 $this->client->adminConfirmSignUp([
                     'UserPoolId' => $this->poolId,
                     'Username' => $username,
                 ]);
             }catch(CognitoIdentityProviderException $e) {
                 switch ($e->getAwsErrorCode()) {
-                    case "AccessDeniedException":
+                    case 'AccessDeniedException':
                         throw new NotAuthorizedException($e->getAwsErrorMessage());
                         break;
                     default:
@@ -299,7 +298,9 @@ class CognitoClient
             throw $e;
         }
     }
-    public function confirmSignUp($username, $code){
+
+    public function confirmSignUp($username, $code)
+    {
         try {
             $this->client->confirmSignUp([
                 'ClientId' => $this->clientId,
@@ -308,13 +309,13 @@ class CognitoClient
                 'UserContextData' => [
                     'IpAddress' => request()->ip(),
                 ],
-                'Username' => $username
+                'Username' => $username,
             ]);
         }catch(CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'CodeMismatchException':
                     throw ValidationException::withMessages([
-                        'code' => $e->getAwsErrorMessage()
+                        'code' => $e->getAwsErrorMessage(),
                     ]);
                     break;
                 case 'AccessDeniedException':
@@ -324,7 +325,9 @@ class CognitoClient
             }
         }
     }
-    public function resendConfirmationCode($username){
+
+    public function resendConfirmationCode($username)
+    {
         try {
             $result = $this->client->resendConfirmationCode([
                 'ClientId' => $this->clientId,
@@ -336,8 +339,9 @@ class CognitoClient
                 'UserContextData' => [
                     'IpAddress' => request()->ip(),
                 ],
-                'Username' => $username
+                'Username' => $username,
             ]);
+
             return $result;
         }catch(CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
@@ -350,10 +354,12 @@ class CognitoClient
             }
         }
     }
+
     public function storeAccessToken()
     {
        session()->put('cognito.AuthenticationResult', $this->authenticationResult);
     }
+
     public function storeCodeDeliveryDetails()
     {
         session()->put('cognito.CodeDeliveryDetails', $this->codeDeliveryDetails);
@@ -366,6 +372,7 @@ class CognitoClient
 
         return $accessToken;
     }
+
     public function getCodeDeliveryDetails()
     {
         return session('cognito.CodeDeliveryDetails');

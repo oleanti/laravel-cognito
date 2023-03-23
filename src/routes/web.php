@@ -4,9 +4,8 @@ use Illuminate\Support\Facades\Route;
 use OleAnti\LaravelCognito\Http\Controllers\VerificationController;
 
 Route::middleware([
-    'web'
+    'web',
 ])->group(function () {
     Route::get('/verification', [VerificationController::class, 'view'])->name('cognito.verification');
     Route::post('/verification', [VerificationController::class, 'post'])->name('cognito.verificationpost');
 });
-

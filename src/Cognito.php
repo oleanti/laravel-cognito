@@ -2,11 +2,6 @@
 
 namespace OleAnti\LaravelCognito;
 
-use OleAnti\LaravelCognito\Http\Responses\SimpleViewResponse;
-use OleAnti\LaravelCognito\Http\Responses\VerifyViewResponse;
-use OleAnti\LaravelCognito\Contracts\VerifyViewResponse as VerifyViewResponseContract;
-
-
 class Cognito
 {
     /**

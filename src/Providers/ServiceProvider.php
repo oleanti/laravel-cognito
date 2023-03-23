@@ -8,13 +8,13 @@ use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 use OleAnti\LaravelCognito\Cognito;
 use OleAnti\LaravelCognito\CognitoClient;
 use OleAnti\LaravelCognito\Console\UserTableCommand;
 use OleAnti\LaravelCognito\Guards\CognitoGuard;
-use OleAnti\LaravelCognito\Observers\UserObserver;
-use Illuminate\Support\Facades\Route;
 use OleAnti\LaravelCognito\Http\Middleware\UserMustBeConfirmed;
+use OleAnti\LaravelCognito\Observers\UserObserver;
 
 /**
  * Class ServiceProvider.
@@ -30,7 +30,6 @@ class ServiceProvider extends AuthServiceProvider
     {
 
         $this->configureRoutes();
-
 
         $this->mergeConfigFrom(
             __DIR__.'/../../config/config.php', 'cognito'
@@ -69,7 +68,7 @@ class ServiceProvider extends AuthServiceProvider
         if ($this->app->runningInConsole()) {
             // Publish views
             $this->publishes([
-            __DIR__.'/../resources/views' => resource_path('views'),
+                __DIR__.'/../resources/views' => resource_path('views'),
             ], 'views');
         }
 
@@ -94,6 +93,7 @@ class ServiceProvider extends AuthServiceProvider
             return $guard;
         });
     }
+
     /**
      * Configure the routes offered by the application.
      *

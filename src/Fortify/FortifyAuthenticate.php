@@ -2,11 +2,9 @@
 
 namespace OleAnti\LaravelCognito\Fortify;
 
-use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
-
 
 class FortifyAuthenticate extends RedirectIfTwoFactorAuthenticatable
 {

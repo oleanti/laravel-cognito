@@ -3,27 +3,27 @@
 namespace OleAnti\LaravelCognito\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Routing\Controller;
-use OleAnti\LaravelCognito\CognitoClient;
+use Illuminate\Support\Facades\Auth;
 use OleAnti\LaravelCognito\Cognito;
-
+use OleAnti\LaravelCognito\CognitoClient;
 
 class VerificationController extends Controller
 {
-
     public function view(Request $request)
     {
         $client = app(CognitoClient::class);
         $details = $client->getCodeDeliveryDetails();
-        if(is_null($details)){
+        if(is_null($details)) {
             $user = Auth::user();
             $client->resendConfirmationCode($user->cognito_username);
         }
+
         return view('cognito.verify', [
-            'details' => $details
+            'details' => $details,
         ]);
     }
+
     public function post(Request $request)
     {
         $validated = $request->validate([
@@ -36,6 +36,7 @@ class VerificationController extends Controller
         $client->confirmSignUp($user->{$cognito::username()}, $code);
         $user->cognito_verified_at = now();
         $user->save();
+
         return redirect('/');
     }
 }
