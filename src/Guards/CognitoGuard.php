@@ -20,6 +20,7 @@ use Illuminate\Contracts\Session\Session;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Traits\Macroable;
 use OleAnti\LaravelCognito\CognitoClient;
+use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
 use Symfony\Component\HttpFoundation\Request;
 
 //class CognitoGuard implements Guard
@@ -55,7 +56,11 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
      */
     protected function hasValidCredentials($user, $credentials)
     {
-        $result = $this->client->authenticate($credentials);
+        try {
+            $result = $this->client->authenticate($credentials);
+        } catch(NotAuthorizedException $e) {
+            return false;
+        }
 
         if ($result && $user instanceof Authenticatable) {
             return true;

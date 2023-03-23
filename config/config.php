@@ -13,6 +13,7 @@ return [
     'region' => env('AWS_COGNITO_REGION', 'us-east-1'),
     'version' => env('AWS_COGNITO_VERSION', 'latest'),
 
+    'signupauthflow' => 'USER_PASSWORD_AUTH', // USER_SRP_AUTH|USER_PASSWORD_AUTH
     'autoconfirmusersignup' => true,
     'delete_cognito_user_on_model_delete' => true,
     'force_new_user_email_verified' => false,

@@ -101,7 +101,17 @@ class CognitoClient
 
     public function initiateauth(string $username, string $password)
     {
+        switch (config('cognito.signupauthflow')) {
+            case 'USER_SRP_AUTH':
+                // https://gist.github.com/jenky/a4465f73adf90206b3e98c3d36a3be4f
+                return;
+            default:
+                return $this->USER_PASSWORD_AUTH($username, $password);
+        }
+    }
 
+    private function USER_PASSWORD_AUTH($username, $password)
+    {
         $parameters = [
             'AuthFlow' => 'USER_PASSWORD_AUTH', // USER_SRP_AUTH|REFRESH_TOKEN_AUTH|REFRESH_TOKEN|CUSTOM_AUTH|ADMIN_NO_SRP_AUTH|USER_PASSWORD_AUTH|ADMIN_USER_PASSWORD_AUTH
             'AuthParameters' => [
@@ -114,11 +124,20 @@ class CognitoClient
                 'IpAddress' => request()->ip(),
             ],
         ];
+        try {
+            $result = $this->client->initiateAuth($parameters);
 
-        $result = $this->client->initiateAuth($parameters);
-
-        return $result;
-
+            return $result;
+        }catch(CognitoIdentityProviderException $e) {
+            // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
+            switch ($e->getAwsErrorCode()) {
+                case 'InvalidParameterException':
+                    throw new InvalidParameterException($e->getAwsErrorMessage());
+                    break;
+                default:
+                    throw $e;
+            }
+        }
     }
 
     public function authenticate($credentials)
@@ -126,7 +145,6 @@ class CognitoClient
         $username = $credentials['email'];
         $password = $credentials['password'];
         try {
-
             $result = $this->initiateauth($username, $password);
         }catch(CognitoIdentityProviderException $e) {
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
