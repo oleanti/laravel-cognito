@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="" tests="1" assertions="5" errors="0" failures="0" skipped="0" time="0.009634">
+    <testsuite name="oleanti laravel-cognito test suite" tests="1" assertions="5" errors="0" failures="0" skipped="0" time="0.009634">
+      <testsuite name="oleanti\LaravelCognito\Test\SessionStorageTest" file="/Users/ole/docker/mystore-dev/www5/vendor/oleanti/laravel-cognito/tests/SessionStorageTest.php" tests="1" assertions="5" errors="0" failures="0" skipped="0" time="0.009634">
+        <testcase name="session_partial_update_test" file="/Users/ole/docker/mystore-dev/www5/vendor/oleanti/laravel-cognito/tests/SessionStorageTest.php" line="59" class="oleanti\LaravelCognito\Test\SessionStorageTest" classname="oleanti.LaravelCognito.Test.SessionStorageTest" assertions="5" time="0.009634"/>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>
