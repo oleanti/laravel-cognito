@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="" tests="1" assertions="1" errors="0" failures="1" skipped="0" time="0.015909">
+    <testsuite name="oleanti laravel-cognito test suite" tests="1" assertions="1" errors="0" failures="1" skipped="0" time="0.015909">
+      <testsuite name="OleAnti\LaravelCognito\Test\FirstTest" file="/Users/ole/git/laravel-cognito/tests/FirstTest.php" tests="1" assertions="1" errors="0" failures="1" skipped="0" time="0.015909">
+        <testcase name="it_shoul_be_true" file="/Users/ole/git/laravel-cognito/tests/FirstTest.php" line="13" class="OleAnti\LaravelCognito\Test\FirstTest" classname="OleAnti.LaravelCognito.Test.FirstTest" assertions="1" time="0.015909">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">OleAnti\LaravelCognito\Test\FirstTest::it_shoul_be_true
+Failed asserting that false is true.
+
+/Users/ole/git/laravel-cognito/tests/FirstTest.php:15</failure>
+        </testcase>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>
