@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Console;
+namespace oleanti\LaravelCognito\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;

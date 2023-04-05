@@ -24,4 +24,7 @@ return [
         'name' => 'name',
         'email' => 'email',
     ],
+    'cognito_field_caster' => [
+        'phone_number' => App\Casts\UserPhone::class,
+    ],
 ];

@@ -11,7 +11,7 @@ Fortify::authenticateThrough(static function (Request $request) {
 
 
 
-php artisan vendor:publish --provider="OleAnti\LaravelCognito\Providers\ServiceProvider" --tag="views"
+php artisan vendor:publish --provider="oleanti\LaravelCognito\Providers\ServiceProvider" --tag="views"
 
 
 

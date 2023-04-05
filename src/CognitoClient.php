@@ -1,16 +1,19 @@
 <?php
 
-namespace OleAnti\LaravelCognito;
+namespace oleanti\LaravelCognito;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
-use OleAnti\LaravelCognito\Exceptions\AccessDeniedException;
-use OleAnti\LaravelCognito\Exceptions\InvalidParameterException;
-use OleAnti\LaravelCognito\Exceptions\LimitExceededException;
-use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
-use OleAnti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
+use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
+use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
+use oleanti\LaravelCognito\Exceptions\LimitExceededException;
+use oleanti\LaravelCognito\Exceptions\NoAccessTokenAvailable;
+use oleanti\LaravelCognito\Exceptions\NoRefreshTokenAvailable;
+use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
+use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
 
 class CognitoClient
 {
@@ -73,11 +76,12 @@ class CognitoClient
         $fields = [];
         $mappedField = config('cognito.usermodel_mapping');
 
-        foreach($mappedField as $localField => $cognitoField) {
-            if(array_key_exists($localField, $attributes)) {
+        foreach ($mappedField as $localField => $cognitoField) {
+            if (array_key_exists($localField, $attributes)) {
+                $cognitoValue = $attributes[$localField];
                 $fields[] = [
                     'Name' => $cognitoField,
-                    'Value' => $attributes[$localField],
+                    'Value' => $cognitoValue,
                 ];
             }
         }
@@ -128,7 +132,7 @@ class CognitoClient
             $result = $this->client->initiateAuth($parameters);
 
             return $result;
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidParameterException':
@@ -146,7 +150,7 @@ class CognitoClient
         $password = $credentials['password'];
         try {
             $result = $this->initiateauth($username, $password);
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
             switch ($e->getAwsErrorCode()) {
                 case 'NotAuthorizedException':
@@ -160,22 +164,21 @@ class CognitoClient
             }
         }
 
-        if(isset($result['AuthenticationResult'])) {
+        if (isset($result['AuthenticationResult'])) {
             $this->authenticationResult = $result['AuthenticationResult'];
             $this->storeAccessToken();
 
             return true;
         }
-        if(isset($result['ChallengeName'])) {
+        if (isset($result['ChallengeName'])) {
             session([
                 'ChallengeResult' => $result,
             ]);
-            if($result['ChallengeName'] == 'SMS_MFA') {
+            if ($result['ChallengeName'] == 'SMS_MFA') {
 
                 return redirect('cognito.challange.sms');
             }
         }
-        dd($result);
 
         return false;
     }
@@ -189,14 +192,18 @@ class CognitoClient
         ];
         try {
             $result = $this->client->changePassword($parameters);
-        }catch(CognitoIdentityProviderException $e) {
-            if($e->getAwsErrorCode() == 'NotAuthorizedException') {
+        } catch (CognitoIdentityProviderException $e) {
+            if ($e->getAwsErrorCode() == 'NotAuthorizedException') {
+                if ($e->getAwsErrorMessage() == 'Access Token has expired') {
+                    throw new AccessTokenExpired;
+                }
                 throw ValidationException::withMessages([
                     'current_password' => __('validation.current_password'),
                 ]);
-            }elseif($e->getAwsErrorCode() == 'LimitExceededException') {
-                throw new LimitExceededException;
-            }else {
+            } elseif ($e->getAwsErrorCode() == 'LimitExceededException') {
+
+                throw new LimitExceededException($e->getAwsErrorMessage());
+            } else {
                 dd($e->getAwsErrorCode());
             }
         }
@@ -217,12 +224,12 @@ class CognitoClient
             'Username' => $username,
 
         ];
-        if(count($userAttributes) > 0) {
+        if (count($userAttributes) > 0) {
             $parameters['UserAttributes'] = $userAttributes;
         }
         try {
             $result = $this->client->signUp($parameters);
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidPasswordException':
                     throw ValidationException::withMessages([
@@ -242,9 +249,9 @@ class CognitoClient
 
         }
         $cognito_verified_at = null;
-        if((isset($result['data']['UserConfirmed']) && $result['data']['UserConfirmed']) || config('cognito.autoconfirmusersignup') === true) {
+        if ((isset($result['data']['UserConfirmed']) && $result['data']['UserConfirmed']) || config('cognito.autoconfirmusersignup') === true) {
             $cognito_verified_at = now();
-        }elseif($result['UserConfirmed'] === false) {
+        } elseif ($result['UserConfirmed'] === false) {
             $this->codeDeliveryDetails = $result['CodeDeliveryDetails'];
             $this->storeCodeDeliveryDetails();
         }
@@ -254,13 +261,13 @@ class CognitoClient
             'cognito_username' => $username,
             'cognito_verified_at' => $cognito_verified_at,
         ]);
-        if(config('cognito.autoconfirmusersignup') === true) {
+        if (config('cognito.autoconfirmusersignup') === true) {
             try {
                 $this->client->adminConfirmSignUp([
                     'UserPoolId' => $this->poolId,
                     'Username' => $username,
                 ]);
-            }catch(CognitoIdentityProviderException $e) {
+            } catch (CognitoIdentityProviderException $e) {
                 switch ($e->getAwsErrorCode()) {
                     case 'AccessDeniedException':
                         throw new NotAuthorizedException($e->getAwsErrorMessage());
@@ -272,7 +279,7 @@ class CognitoClient
             }
         }
 
-        if(config('cognito.force_new_user_email_verified') === true) {
+        if (config('cognito.force_new_user_email_verified') === true) {
             $this->adminUpdateUserAttributes($username, [[
                 'Name' => 'email_verified',
                 'Value' => 'true',
@@ -291,7 +298,7 @@ class CognitoClient
                 'UserPoolId' => $this->poolId,
                 'Username' => $username,
             ]);
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'UserNotFoundException':
                     throw new UserNotFoundException($username);
@@ -312,7 +319,7 @@ class CognitoClient
                 'UserPoolId' => $this->poolId,
                 'Username' => $username, // REQUIRED
             ]);
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             throw $e;
         }
     }
@@ -329,7 +336,7 @@ class CognitoClient
                 ],
                 'Username' => $username,
             ]);
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'CodeMismatchException':
                     throw ValidationException::withMessages([
@@ -361,7 +368,7 @@ class CognitoClient
             ]);
 
             return $result;
-        }catch(CognitoIdentityProviderException $e) {
+        } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidParameterException':
                     throw new InvalidParameterException($e->getAwsErrorMessage());
@@ -371,6 +378,68 @@ class CognitoClient
                     throw $e;
             }
         }
+    }
+
+    public function refreshAccessToken()
+    {
+        $username = auth()->user()->{config('cognito.username')};
+
+        $parameters = [
+            'AuthFlow' => 'REFRESH_TOKEN_AUTH',
+            'AuthParameters' => [
+                'REFRESH_TOKEN' => $this->getRefreshToken(),
+                'SECRET_HASH' => $this->getSecretHash($username),
+            ],
+            'ClientId' => $this->clientId,
+            'UserContextData' => [
+                'IpAddress' => request()->ip(),
+            ],
+        ];
+        try {
+            $result = $this->client->initiateAuth($parameters);
+            if (isset($result['AuthenticationResult'])) {
+                $this->authenticationResult = $result['AuthenticationResult'];
+                $this->storeAccessToken();
+
+                return true;
+            }
+            dd($result);
+
+            return $result;
+        } catch (CognitoIdentityProviderException $e) {
+            // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
+            switch ($e->getAwsErrorCode()) {
+                case 'InvalidParameterException':
+                    throw new InvalidParameterException($e->getAwsErrorMessage());
+                    break;
+                default:
+                    throw $e;
+            }
+        }
+
+    }
+
+    public function getUserAttributeVerificationCode()
+    {
+        $payload = [
+            'AccessToken' => $this->getAccessToken(),
+            'AttributeName' => 'phone_number',
+        ];
+        $response = $this->client->GetUserAttributeVerificationCode($payload);
+
+        return true;
+    }
+
+    public function verifyUserAttribute($code)
+    {
+        $payload = [
+            'AccessToken' => $this->getAccessToken(),
+            'AttributeName' => 'phone_number',
+            'Code' => $code,
+        ];
+        $response = $this->client->VerifyUserAttribute($payload);
+
+        return true;
     }
 
     public function storeAccessToken()
@@ -386,9 +455,22 @@ class CognitoClient
     public function getAccessToken()
     {
         $accessResult = session('cognito.AuthenticationResult');
-        $accessToken = $accessResult['AccessToken'];
+        if (is_null($accessResult)) {
+            throw new NoAccessTokenAvailable;
+        }
 
-        return $accessToken;
+        return $accessResult['AccessToken'];
+
+    }
+
+    public function getRefreshToken()
+    {
+        $accessResult = session('cognito.AuthenticationResult');
+        if (is_null($accessResult) || ! isset($accessResult['RefreshToken'])) {
+            throw new NoRefreshTokenAvailable;
+        }
+
+        return $accessResult['RefreshToken'];
     }
 
     public function getCodeDeliveryDetails()

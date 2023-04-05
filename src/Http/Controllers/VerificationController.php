@@ -1,12 +1,12 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Http\Controllers;
+namespace oleanti\LaravelCognito\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
-use OleAnti\LaravelCognito\Cognito;
-use OleAnti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\Cognito;
+use oleanti\LaravelCognito\CognitoClient;
 
 class VerificationController extends Controller
 {
@@ -14,7 +14,7 @@ class VerificationController extends Controller
     {
         $client = app(CognitoClient::class);
         $details = $client->getCodeDeliveryDetails();
-        if(is_null($details)) {
+        if (is_null($details)) {
             $user = Auth::user();
             $client->resendConfirmationCode($user->cognito_username);
         }

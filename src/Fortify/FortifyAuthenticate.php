@@ -1,10 +1,10 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Fortify;
+namespace oleanti\LaravelCognito\Fortify;
 
 use Illuminate\Support\Facades\Auth;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
-use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
+use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 
 class FortifyAuthenticate extends RedirectIfTwoFactorAuthenticatable
 {
@@ -13,10 +13,10 @@ class FortifyAuthenticate extends RedirectIfTwoFactorAuthenticatable
         $credentials = $request->only('email', 'password');
         $remember = $request->boolean('remember');
         try {
-            if(Auth::attempt($credentials, $remember)) {
+            if (Auth::attempt($credentials, $remember)) {
                 return $next($request);
             }
-        } catch(NotAuthorizedException $e) {
+        } catch (NotAuthorizedException $e) {
             $this->fireFailedEvent($request);
             $this->throwFailedAuthenticationException($request);
         }

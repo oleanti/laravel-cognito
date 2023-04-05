@@ -22,21 +22,21 @@
     ],
     "autoload": {
         "psr-4": {
-            "OleAnti\\LaravelCognito\\": "src/"
+            "oleanti\\LaravelCognito\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "OleAnti\\LaravelCognito\\Test\\": "tests/"
+            "oleanti\\LaravelCognito\\Test\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
-            "aliases": {                
-                "Cognito": "OleAnti\\LaravelCognito\\Facades\\Cognito"
+            "aliases": {
+                "Cognito": "oleanti\\LaravelCognito\\Facades\\Cognito"
             },
             "providers": [
-                "OleAnti\\LaravelCognito\\Providers\\ServiceProvider"
+                "oleanti\\LaravelCognito\\Providers\\ServiceProvider"
             ]
         }
     }

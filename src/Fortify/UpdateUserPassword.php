@@ -1,12 +1,12 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Fortify;
+namespace oleanti\LaravelCognito\Fortify;
 
 use App\Actions\Fortify\PasswordValidationRules;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\UpdatesUserPasswords;
-use OleAnti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\CognitoClient;
 
 class UpdateUserPassword implements UpdatesUserPasswords
 {

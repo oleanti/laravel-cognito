@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Http\Middleware;
+namespace oleanti\LaravelCognito\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
@@ -20,7 +20,7 @@ class UserMustBeConfirmed
     {
         $user = $request->user();
 
-        if($user->cognito_verified_at === null) {
+        if ($user->cognito_verified_at === null) {
             return redirect($this->redirectTo($request));
         }
 

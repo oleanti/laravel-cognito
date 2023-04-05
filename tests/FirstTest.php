@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Test;
+namespace oleanti\LaravelCognito\Test;
 
 class PayloadTest extends AbstractTestCase
 {
