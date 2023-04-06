@@ -4,14 +4,13 @@ namespace oleanti\LaravelCognito;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
+use Aws\Token\Token;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
 use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
 use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
 use oleanti\LaravelCognito\Exceptions\LimitExceededException;
-use oleanti\LaravelCognito\Exceptions\NoAccessTokenAvailable;
-use oleanti\LaravelCognito\Exceptions\NoRefreshTokenAvailable;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
 
@@ -201,7 +200,6 @@ class CognitoClient
                     'current_password' => __('validation.current_password'),
                 ]);
             } elseif ($e->getAwsErrorCode() == 'LimitExceededException') {
-
                 throw new LimitExceededException($e->getAwsErrorMessage());
             } else {
                 dd($e->getAwsErrorCode());
@@ -403,7 +401,6 @@ class CognitoClient
 
                 return true;
             }
-            dd($result);
 
             return $result;
         } catch (CognitoIdentityProviderException $e) {
@@ -419,22 +416,22 @@ class CognitoClient
 
     }
 
-    public function getUserAttributeVerificationCode()
+    public function getUserAttributeVerificationCode(string $attributeName)
     {
         $payload = [
             'AccessToken' => $this->getAccessToken(),
-            'AttributeName' => 'phone_number',
+            'AttributeName' => $attributeName,
         ];
         $response = $this->client->GetUserAttributeVerificationCode($payload);
 
         return true;
     }
 
-    public function verifyUserAttribute($code)
+    public function verifyUserAttribute(string $attributeName, $code)
     {
         $payload = [
             'AccessToken' => $this->getAccessToken(),
-            'AttributeName' => 'phone_number',
+            'AttributeName' => $attributeName,
             'Code' => $code,
         ];
         $response = $this->client->VerifyUserAttribute($payload);
@@ -444,7 +441,9 @@ class CognitoClient
 
     public function storeAccessToken()
     {
-       session()->put('cognito.AuthenticationResult', $this->authenticationResult);
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $storage->set($this->authenticationResult);
     }
 
     public function storeCodeDeliveryDetails()
@@ -454,23 +453,29 @@ class CognitoClient
 
     public function getAccessToken()
     {
-        $accessResult = session('cognito.AuthenticationResult');
-        if (is_null($accessResult)) {
-            throw new NoAccessTokenAvailable;
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $authResult = $storage->get();
+        $token = $authResult->getAwsToken();
+
+        if ($token->isExpired() && false) {
+            $this->refreshAccessToken();
+            $result = $storage->get();
+            $token = $result->getAwsToken();
         }
 
-        return $accessResult['AccessToken'];
-
+        return $token->getToken();
     }
 
     public function getRefreshToken()
     {
-        $accessResult = session('cognito.AuthenticationResult');
-        if (is_null($accessResult) || ! isset($accessResult['RefreshToken'])) {
-            throw new NoRefreshTokenAvailable;
-        }
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $authResult = $storage->get();
 
-        return $accessResult['RefreshToken'];
+        $refreshToken = $authResult->getRefreshToken();
+
+        return $refreshToken->getToken();
     }
 
     public function getCodeDeliveryDetails()

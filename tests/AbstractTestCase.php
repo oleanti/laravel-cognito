@@ -3,6 +3,7 @@
 namespace oleanti\LaravelCognito\Test;
 
 use Carbon\Carbon;
+use Faker\Factory as Faker;
 use PHPUnit\Framework\TestCase;
 
 abstract class AbstractTestCase extends TestCase
@@ -12,12 +13,15 @@ abstract class AbstractTestCase extends TestCase
      */
     protected $testNowTimestamp;
 
+    public $faker;
+
     public function setUp(): void
     {
         parent::setUp();
 
         Carbon::setTestNow($now = Carbon::now());
         $this->testNowTimestamp = $now->getTimestamp();
+        $this->faker = Faker::create();
     }
 
     public function tearDown(): void

@@ -27,4 +27,5 @@ return [
     'cognito_field_caster' => [
         'phone_number' => App\Casts\UserPhone::class,
     ],
+    'accesstokenstorage' => oleanti\LaravelCognito\AccessToken\SessionStorage::class,
 ];
