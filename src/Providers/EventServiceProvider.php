@@ -1,10 +1,10 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Providers;
+namespace oleanti\LaravelCognito\Providers;
 
 use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
-use OleAnti\LaravelCognito\Listeners\SaveStuff;
+use oleanti\LaravelCognito\Listeners\SaveStuff;
 
 class EventServiceProvider extends ServiceProvider
 {

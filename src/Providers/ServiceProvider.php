@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Providers;
+namespace oleanti\LaravelCognito\Providers;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Illuminate\Contracts\Foundation\Application;
@@ -9,12 +9,13 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use OleAnti\LaravelCognito\Cognito;
-use OleAnti\LaravelCognito\CognitoClient;
-use OleAnti\LaravelCognito\Console\UserTableCommand;
-use OleAnti\LaravelCognito\Guards\CognitoGuard;
-use OleAnti\LaravelCognito\Http\Middleware\UserMustBeConfirmed;
-use OleAnti\LaravelCognito\Observers\UserObserver;
+use oleanti\LaravelCognito\Cognito;
+use oleanti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\Console\UserTableCommand;
+use oleanti\LaravelCognito\Guards\CognitoGuard;
+use oleanti\LaravelCognito\Http\Middleware\UserMustBeConfirmed;
+use oleanti\LaravelCognito\Observers\UserObserver;
+use oleanti\LaravelCognito\Providers\EventServiceProvider;
 
 /**
  * Class ServiceProvider.
@@ -42,8 +43,10 @@ class ServiceProvider extends AuthServiceProvider
             ]);
         }
         $userModelClassName = Cognito::userModel();
-        $userModel = new $userModelClassName;
-        $userModel->observe(UserObserver::class);
+        if(class_exists($userModelClassName)){
+            $userModel = new $userModelClassName;
+            $userModel->observe(UserObserver::class);
+        }
 
         $this->app->singleton(CognitoClient::class, function (Application $app) {
             $config = [
@@ -102,7 +105,7 @@ class ServiceProvider extends AuthServiceProvider
     protected function configureRoutes()
     {
         Route::group([
-            'namespace' => 'OleAnti\LaravelCognito\Http\Controllers',
+            'namespace' => 'oleanti\LaravelCognito\Http\Controllers',
             'domain' => config('cognito.domain', null),
             'prefix' => config('cognito.prefix', config('cognito.path')),
         ], function () {

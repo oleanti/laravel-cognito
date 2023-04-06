@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Exceptions;
+namespace oleanti\LaravelCognito\Exceptions;
 
 use Exception;
 

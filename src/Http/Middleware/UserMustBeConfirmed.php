@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Http\Middleware;
+namespace oleanti\LaravelCognito\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

@@ -1,6 +1,6 @@
 <?php
 
-namespace OleAnti\LaravelCognito;
+namespace oleanti\LaravelCognito;
 
 class Cognito
 {
@@ -15,19 +15,12 @@ class Cognito
     }
 
     /**
-     * The user model
-     *
-     * @var string
-     */
-    public static $userModel = 'App\\Models\\User';
-
-    /**
      * Get the name of the user model used by the application.
      *
      * @return string
      */
     public static function userModel()
     {
-        return static::$userModel;
+        return config('cognito.usermodel', 'App\Models\User');
     }
 }

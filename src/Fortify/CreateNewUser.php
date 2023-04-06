@@ -1,13 +1,13 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Fortify;
+namespace oleanti\LaravelCognito\Fortify;
 
 use App\Actions\Fortify\PasswordValidationRules;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 use Laravel\Jetstream\Jetstream;
-use OleAnti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\CognitoClient;
 
 class CreateNewUser implements CreatesNewUsers
 {

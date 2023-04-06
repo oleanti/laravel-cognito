@@ -1,10 +1,10 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Fortify;
+namespace oleanti\LaravelCognito\Fortify;
 
 use Illuminate\Support\Facades\Auth;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
-use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
+use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 
 class FortifyAuthenticate extends RedirectIfTwoFactorAuthenticatable
 {

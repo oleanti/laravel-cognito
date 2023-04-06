@@ -1,16 +1,19 @@
 <?php
 
-namespace OleAnti\LaravelCognito;
+namespace oleanti\LaravelCognito;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
-use OleAnti\LaravelCognito\Exceptions\AccessDeniedException;
-use OleAnti\LaravelCognito\Exceptions\InvalidParameterException;
-use OleAnti\LaravelCognito\Exceptions\LimitExceededException;
-use OleAnti\LaravelCognito\Exceptions\NotAuthorizedException;
-use OleAnti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
+use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
+use oleanti\LaravelCognito\Exceptions\LimitExceededException;
+use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
+use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
+use oleanti\LaravelCognito\Exceptions\NoRefreshTokenAvailable;
+use Aws\Token\Token;
 
 class CognitoClient
 {
@@ -75,9 +78,10 @@ class CognitoClient
 
         foreach($mappedField as $localField => $cognitoField) {
             if(array_key_exists($localField, $attributes)) {
+                $cognitoValue = $attributes[$localField];
                 $fields[] = [
                     'Name' => $cognitoField,
-                    'Value' => $attributes[$localField],
+                    'Value' => $cognitoValue,
                 ];
             }
         }
@@ -126,7 +130,6 @@ class CognitoClient
         ];
         try {
             $result = $this->client->initiateAuth($parameters);
-
             return $result;
         }catch(CognitoIdentityProviderException $e) {
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
@@ -175,7 +178,6 @@ class CognitoClient
                 return redirect('cognito.challange.sms');
             }
         }
-        dd($result);
 
         return false;
     }
@@ -191,11 +193,14 @@ class CognitoClient
             $result = $this->client->changePassword($parameters);
         }catch(CognitoIdentityProviderException $e) {
             if($e->getAwsErrorCode() == 'NotAuthorizedException') {
+                if($e->getAwsErrorMessage() == "Access Token has expired"){
+                    throw new AccessTokenExpired;
+                }
                 throw ValidationException::withMessages([
                     'current_password' => __('validation.current_password'),
                 ]);
             }elseif($e->getAwsErrorCode() == 'LimitExceededException') {
-                throw new LimitExceededException;
+                throw new LimitExceededException($e->getAwsErrorMessage());
             }else {
                 dd($e->getAwsErrorCode());
             }
@@ -372,10 +377,64 @@ class CognitoClient
             }
         }
     }
+    public function refreshAccessToken(){
+        $username = auth()->user()->{config('cognito.username')};
 
+        $parameters = [
+            'AuthFlow' => 'REFRESH_TOKEN_AUTH',
+            'AuthParameters' => [
+                'REFRESH_TOKEN' => $this->getRefreshToken(),
+                'SECRET_HASH' => $this->getSecretHash($username),
+            ],
+            'ClientId' => $this->clientId,
+            'UserContextData' => [
+                'IpAddress' => request()->ip(),
+            ],
+        ];
+        try {
+            $result = $this->client->initiateAuth($parameters);
+            if(isset($result['AuthenticationResult'])) {
+                $this->authenticationResult = $result['AuthenticationResult'];
+                $this->storeAccessToken();
+                return true;
+            }
+            return $result;
+        }catch(CognitoIdentityProviderException $e) {
+            // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
+            switch ($e->getAwsErrorCode()) {
+                case 'InvalidParameterException':
+                    throw new InvalidParameterException($e->getAwsErrorMessage());
+                    break;
+                default:
+                    throw $e;
+            }
+        }
+
+    }
+    public function getUserAttributeVerificationCode(string $attributeName){
+        $payload = [
+            'AccessToken'   => $this->getAccessToken(),
+            'AttributeName' => $attributeName,
+        ];
+        $response = $this->client->GetUserAttributeVerificationCode($payload);
+
+        return true;
+    }
+    public function verifyUserAttribute(string $attributeName, $code)
+    {
+        $payload = [
+            'AccessToken'   => $this->getAccessToken(),
+            'AttributeName' => $attributeName,
+            'Code'          => $code,
+        ];
+        $response = $this->client->VerifyUserAttribute($payload);
+        return true;
+    }
     public function storeAccessToken()
     {
-       session()->put('cognito.AuthenticationResult', $this->authenticationResult);
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $storage->set($this->authenticationResult);
     }
 
     public function storeCodeDeliveryDetails()
@@ -385,10 +444,27 @@ class CognitoClient
 
     public function getAccessToken()
     {
-        $accessResult = session('cognito.AuthenticationResult');
-        $accessToken = $accessResult['AccessToken'];
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $authResult = $storage->get();
+        $token = $authResult->getAwsToken();
 
-        return $accessToken;
+        if($token->isExpired() && false){
+            $this->refreshAccessToken();
+            $result = $storage->get();
+            $token = $result->getAwsToken();
+        }
+
+        return $token->getToken();
+    }
+    public function getRefreshToken()
+    {
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+        $authResult = $storage->get();
+
+        $refreshToken = $authResult->getRefreshToken();
+        return $refreshToken->getToken();
     }
 
     public function getCodeDeliveryDetails()

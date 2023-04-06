@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use OleAnti\LaravelCognito\Http\Controllers\VerificationController;
+use oleanti\LaravelCognito\Http\Controllers\VerificationController;
 
 Route::middleware([
     'web',

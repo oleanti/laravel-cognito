@@ -1,10 +1,10 @@
 <?php
 
-namespace OleAnti\LaravelCognito\Listeners;
+namespace oleanti\LaravelCognito\Listeners;
 
 use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Support\Facades\App;
-use OleAnti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\CognitoClient;
 
 class SaveStuff
 {
