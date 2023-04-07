@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
 use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
 use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
+use oleanti\LaravelCognito\Exceptions\InvalidPassword;
 use oleanti\LaravelCognito\Exceptions\LimitExceededException;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
@@ -209,7 +210,42 @@ class CognitoClient
         return $result;
     }
 
-    public function createUser($username, $password, $attributes)
+    public function adminSetUserPassword($username, $password, $permanent = true)
+    {
+        $parameters = [
+            'Password' => $password,
+            'Permanent' => $permanent,
+            'Username' => $username,
+            'UserPoolId' => $this->poolId,
+        ];
+        try {
+            $this->client->adminSetUserPassword($parameters);
+        } catch (CognitoIdentityProviderException $e) {
+            if ($e->getAwsErrorCode() === 'UserNotFoundException') {
+                throw new UserNotFoundException($username);
+            }
+
+            if ($e->getAwsErrorCode() === 'InvalidPasswordException') {
+                throw new InvalidPassword($e->getAwsErrorMessage());
+            }
+            throw $e;
+        }
+    }
+
+    public function adminCreateUser($username, $attributes = [])
+    {
+        $userAttributes = $this->mapUserAttributesToCognito($attributes);
+        $parameters = [
+            'UserPoolId' => $this->poolId,
+            'MessageAction' => 'SUPPRESS',
+            'Username' => $username,
+        ];
+        $result = $this->client->AdminCreateUser($parameters);
+
+        return $result;
+    }
+
+    public function signUp($username, $password, $attributes)
     {
         $userAttributes = $this->mapUserAttributesToCognito($attributes);
         $parameters = [

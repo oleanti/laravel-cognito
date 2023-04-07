@@ -7,8 +7,14 @@ use oleanti\LaravelCognito\CognitoClient;
 
 class UserObserver
 {
+    /**
+     * Handle the "updated" event.
+     *
+     * @return void
+     */
     public function updated($model)
     {
+
         $cognitoClient = app(CognitoClient::class);
         $cognitoFieldsChanged = $cognitoClient->mapUserAttributesToCognito($model->getChanges());
         if (count($cognitoFieldsChanged) > 0) {

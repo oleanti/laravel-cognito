@@ -41,11 +41,6 @@ class ServiceProvider extends AuthServiceProvider
                 UserTableCommand::class,
             ]);
         }
-        $userModelClassName = Cognito::userModel();
-        if (class_exists($userModelClassName)) {
-            $userModel = new $userModelClassName;
-            $userModel->observe(UserObserver::class);
-        }
 
         $this->app->singleton(CognitoClient::class, function (Application $app) {
             $config = [
@@ -76,6 +71,12 @@ class ServiceProvider extends AuthServiceProvider
 
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('usermustbeconfirmed', UserMustBeConfirmed::class);
+        $userModelClassName = Cognito::userModel();
+        if (class_exists($userModelClassName)) {
+
+            $userModel = new $userModelClassName;
+            $userModel->observe(UserObserver::class);
+        }
     }
 
     protected function extendAuthGuard()

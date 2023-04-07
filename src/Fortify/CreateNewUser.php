@@ -33,6 +33,6 @@ class CreateNewUser implements CreatesNewUsers
 
         $cognitoClient = app(CognitoClient::class);
 
-        return $cognitoClient->createUser($input['email'], $input['password'], $attributes);
+        return $cognitoClient->signUp($input['email'], $input['password'], $attributes);
     }
 }
