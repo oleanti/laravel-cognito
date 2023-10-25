@@ -12,7 +12,7 @@ return [
     'user_pool_id' => env('AWS_COGNITO_USER_POOL_ID'),
     'region' => env('AWS_COGNITO_REGION', 'us-east-1'),
     'version' => env('AWS_COGNITO_VERSION', 'latest'),
-
+    'add_missing_local_user_sso' => true,
     'signupauthflow' => 'USER_PASSWORD_AUTH', // USER_SRP_AUTH|USER_PASSWORD_AUTH
     'autoconfirmusersignup' => true,
     'delete_cognito_user_on_model_delete' => true,

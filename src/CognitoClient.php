@@ -14,6 +14,7 @@ use oleanti\LaravelCognito\Exceptions\InvalidPassword;
 use oleanti\LaravelCognito\Exceptions\LimitExceededException;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\UserNotConfirmedException;
 
 class CognitoClient
 {
@@ -137,6 +138,9 @@ class CognitoClient
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidParameterException':
                     throw new InvalidParameterException($e->getAwsErrorMessage());
+                    break;
+                case 'UserNotConfirmedException':
+                    throw new UserNotConfirmedException($e->getAwsErrorMessage());
                     break;
                 default:
                     throw $e;

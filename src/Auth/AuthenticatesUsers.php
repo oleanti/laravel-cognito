@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
 
 trait AuthenticatesUsers
 {
@@ -82,9 +83,16 @@ trait AuthenticatesUsers
      */
     protected function attemptLogin(Request $request)
     {
-        return $this->guard()->attempt(
-            $this->credentials($request), $request->boolean('remember')
-        );
+        $credentials = $this->credentials($request);
+        try{            
+            return $this->guard()->attempt($credentials, $request->boolean('remember'));
+        }catch(NoLocalUserException $e){
+            if (config('cognito.add_missing_local_user_sso')) {                
+                $response = $this->createLocalUser($credentials[$this->username()]);
+            }else{
+                throw $e;
+            }
+        }
     }
 
     /**
@@ -193,4 +201,27 @@ trait AuthenticatesUsers
     {
         return Auth::guard();
     }
+    /**
+     * Create a local user if one does not exist.
+     *
+     * @param  array  $credentials
+     * @return mixed
+     */
+    protected function createLocalUser($username)
+    {
+        $userModel = config('cognito.usermodel');
+        $client = app(CognitoClient::class);
+        $cognitoUser = $client->getUser($username);
+        $attributes = $cognitoUser->get('UserAttributes');
+        $mappings = config('cognito.usermodel_mapping');
+        $user = new $userModel();
+        foreach($attributes as $delta => $pair){
+            $search = array_search($pair['Name'], $mappings);
+            if($search !== false){
+                $user->{$search} = $pair['Value'];
+            }
+        }
+        $user->save();        
+        return $user;
+    }     
 }
