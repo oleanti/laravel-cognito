@@ -87,8 +87,9 @@ trait AuthenticatesUsers
         try{            
             return $this->guard()->attempt($credentials, $request->boolean('remember'));
         }catch(NoLocalUserException $e){
-            if (config('cognito.add_missing_local_user_sso')) {                
-                $response = $this->createLocalUser($credentials[$this->username()]);
+            if (config('cognito.add_missing_local_user_sso')) {
+                $user = $this->createLocalUser($credentials[$this->username()]);      
+                return $this->guard()->attempt($credentials, $request->boolean('remember')); 
             }else{
                 throw $e;
             }

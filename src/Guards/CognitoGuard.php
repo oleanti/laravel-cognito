@@ -21,9 +21,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Traits\Macroable;
 use oleanti\LaravelCognito\CognitoClient;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
+use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
+
 use Symfony\Component\HttpFoundation\Request;
 
-//class CognitoGuard implements Guard
+
 class CognitoGuard extends SessionGuard implements StatefulGuard
 {
     use GuardHelpers, Macroable;
@@ -64,6 +66,9 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
 
         if ($result && $user instanceof Authenticatable) {
             return true;
+        }
+        if(!$user instanceof Authenticatable){
+            throw new NoLocalUserException();
         }
 
         return false;
