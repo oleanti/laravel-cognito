@@ -15,6 +15,7 @@ use oleanti\LaravelCognito\Exceptions\LimitExceededException;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
 use oleanti\LaravelCognito\Exceptions\UserNotConfirmedException;
+use oleanti\LaravelCognito\Exceptions\InvalidConfiguration;
 
 class CognitoClient
 {
@@ -99,6 +100,11 @@ class CognitoClient
             ]);
         } catch (CognitoIdentityProviderException $e) {
             return false;
+        } catch (\InvalidArgumentException $e){
+            if(str_contains($e->getMessage(), '[UserPoolId] is missing and is a required parameter')){
+                throw new InvalidConfiguration('UserPoolId is missing and is a required parameter');
+            }
+            throw $e;
         }
 
         return $user;
