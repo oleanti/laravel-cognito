@@ -10,7 +10,10 @@ class CreateUser
 {
     public static function createFromCognito($username){
         $cognitoClient = app(CognitoClient::class);
-        $cognitoUser = $cognitoClient->getUser($username);        
+        $cognitoUser = $cognitoClient->getUser($username);    
+        if($cognitoUser == false){
+            return null;
+        }    
         $attributes = $cognitoUser->toArray()['UserAttributes'];
         
         $modelAttributes = self::mapCognitoAttributesToUserModel($attributes);
