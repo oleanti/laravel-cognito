@@ -47,6 +47,11 @@ class SessionStorage implements AuthenticationResultStorageInterface
         App::make('session')->put('cognito.AuthenticationResult', array_merge($current, $result));
     }
 
+    public function getAll()
+    {
+        return App::make('session')->get('cognito.AuthenticationResult');
+    }
+
     public function getCached()
     {
         return static::$cache;

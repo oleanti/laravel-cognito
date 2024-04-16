@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
 use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
+use oleanti\LaravelCognito\Exceptions\InvalidConfiguration;
 use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
 use oleanti\LaravelCognito\Exceptions\InvalidPassword;
 use oleanti\LaravelCognito\Exceptions\LimitExceededException;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
-use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\SessionExpired;
+use oleanti\LaravelCognito\Exceptions\UserCodeInvalid;
 use oleanti\LaravelCognito\Exceptions\UserNotConfirmedException;
-use oleanti\LaravelCognito\Exceptions\InvalidConfiguration;
+use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
 
 class CognitoClient
 {
@@ -100,8 +102,8 @@ class CognitoClient
             ]);
         } catch (CognitoIdentityProviderException $e) {
             return false;
-        } catch (\InvalidArgumentException $e){
-            if(str_contains($e->getMessage(), '[UserPoolId] is missing and is a required parameter')){
+        } catch (\InvalidArgumentException $e) {
+            if (str_contains($e->getMessage(), '[UserPoolId] is missing and is a required parameter')) {
                 throw new InvalidConfiguration('UserPoolId is missing and is a required parameter');
             }
             throw $e;
@@ -167,7 +169,7 @@ class CognitoClient
                     throw new NotAuthorizedException($username);
                     break;
                 case 'NEW_PASSWORD_REQUIRED':
-                    dd($e);
+                    throw $e;
                     break;
                 default:
                     throw $e;
@@ -181,13 +183,11 @@ class CognitoClient
             return true;
         }
         if (isset($result['ChallengeName'])) {
-            session([
-                'ChallengeResult' => $result,
-            ]);
-            if ($result['ChallengeName'] == 'SMS_MFA') {
+            $class = config('cognito.accesstokenstorage');
+            $storage = new $class;
+            $storage->set($result->toArray());
 
-                return redirect('cognito.challange.sms');
-            }
+            return redirect(route(config('cognito.routes.mfa_challenge')));
         }
 
         return false;
@@ -527,5 +527,86 @@ class CognitoClient
     public function getCodeDeliveryDetails()
     {
         return session('cognito.CodeDeliveryDetails');
+    }
+
+    public function respondToTokenChallange($otp, $username, $session)
+    {
+        $payload = [
+            'ChallengeName' => 'SOFTWARE_TOKEN_MFA',
+            'ClientId' => $this->clientId,
+            'Session' => $session,
+            'ChallengeResponses' => [
+                'USERNAME' => $username,
+                'SOFTWARE_TOKEN_MFA_CODE' => $otp,
+                'SECRET_HASH' => $this->getSecretHash($username),
+            ],
+        ];
+        try {
+            $response = $this->client->RespondToAuthChallenge($payload);
+
+            return $response;
+        } catch (CognitoIdentityProviderException $e) {
+            switch ($e->getAwsErrorCode()) {
+                case 'NotAuthorizedException':
+                    if ($e->getAwsErrorMessage() == 'Invalid session for the user, session is expired.') {
+                        throw new SessionExpired($e->getAwsErrorMessage());
+                    }
+                case 'CodeMismatchException':
+                    throw new UserCodeInvalid($e->getAwsErrorMessage());
+                    break;
+                default:
+                    throw $e;
+            }
+            throw $e;
+        }
+    }
+
+    public function disableMfa($username)
+    {
+        $payload = [
+            'SMSMfaSettings' => [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ],
+            'SoftwareTokenMfaSettings' => [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ],
+            'Username' => $username,
+            'UserPoolId' => $this->poolId,
+        ];
+        $this->client->adminSetUserMFAPreference($payload);
+    }
+
+    public function associateSoftwareToken()
+    {
+        $payload = [
+            'AccessToken' => $this->getAccessToken(),
+        ];
+
+        return $this->client->AssociateSoftwareToken($payload);
+    }
+
+    public function verifySoftwareToken($otp)
+    {
+        $payload = [
+            'AccessToken' => $this->getAccessToken(),
+            'UserCode' => $otp,
+        ];
+        $verify = $this->client->VerifySoftwareToken($payload);
+        $payload = [
+            'SMSMfaSettings' => [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ],
+            'SoftwareTokenMfaSettings' => [
+                'Enabled' => true,
+                'PreferredMfa' => true,
+            ],
+            'AccessToken' => $this->getAccessToken(),
+        ];
+        $this->client->SetUserMFAPreference($payload);
+
+        return $verify;
     }
 }

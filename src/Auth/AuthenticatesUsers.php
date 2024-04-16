@@ -44,21 +44,25 @@ trait AuthenticatesUsers
 
             return $this->sendLockoutResponse($request);
         }
+        $attempt = $this->attemptLogin($request);
 
-        if ($this->attemptLogin($request)) {
+        if ($attempt === true) {
             if ($request->hasSession()) {
                 $request->session()->put('auth.password_confirmed_at', time());
             }
 
             return $this->sendLoginResponse($request);
+        } elseif ($attempt === false) {
+            // If the login attempt was unsuccessful we will increment the number of attempts
+            // to login and redirect the user back to the login form. Of course, when this
+            // user surpasses their maximum number of attempts they will get locked out.
+            $this->incrementLoginAttempts($request);
+
+            return $this->sendFailedLoginResponse($request);
         }
 
-        // If the login attempt was unsuccessful we will increment the number of attempts
-        // to login and redirect the user back to the login form. Of course, when this
-        // user surpasses their maximum number of attempts they will get locked out.
-        $this->incrementLoginAttempts($request);
+        return $attempt;
 
-        return $this->sendFailedLoginResponse($request);
     }
 
     /**
@@ -84,13 +88,14 @@ trait AuthenticatesUsers
     protected function attemptLogin(Request $request)
     {
         $credentials = $this->credentials($request);
-        try{            
+        try {
             return $this->guard()->attempt($credentials, $request->boolean('remember'));
-        }catch(NoLocalUserException $e){
+        } catch (NoLocalUserException $e) {
             if (config('cognito.add_missing_local_user_sso')) {
-                $user = $this->createLocalUser($credentials[$this->username()]);      
-                return $this->guard()->attempt($credentials, $request->boolean('remember')); 
-            }else{
+                $user = $this->createLocalUser($credentials[$this->username()]);
+
+                return $this->guard()->attempt($credentials, $request->boolean('remember'));
+            } else {
                 throw $e;
             }
         }
@@ -202,6 +207,7 @@ trait AuthenticatesUsers
     {
         return Auth::guard();
     }
+
     /**
      * Create a local user if one does not exist.
      *
@@ -215,14 +221,15 @@ trait AuthenticatesUsers
         $cognitoUser = $client->getUser($username);
         $attributes = $cognitoUser->get('UserAttributes');
         $mappings = config('cognito.usermodel_mapping');
-        $user = new $userModel();
-        foreach($attributes as $delta => $pair){
+        $user = new $userModel;
+        foreach ($attributes as $delta => $pair) {
             $search = array_search($pair['Name'], $mappings);
-            if($search !== false){
+            if ($search !== false) {
                 $user->{$search} = $pair['Value'];
             }
         }
-        $user->save();        
+        $user->save();
+
         return $user;
-    }     
+    }
 }

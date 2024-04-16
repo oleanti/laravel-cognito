@@ -28,4 +28,7 @@ return [
         'phone_number' => App\Casts\UserPhone::class,
     ],
     'accesstokenstorage' => oleanti\LaravelCognito\AccessToken\SessionStorage::class,
+    'routes' => [
+        'mfa_challenge' => 'login.mfa',
+    ],
 ];

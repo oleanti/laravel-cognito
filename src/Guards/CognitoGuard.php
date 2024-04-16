@@ -13,18 +13,17 @@ namespace oleanti\LaravelCognito\Guards;
 
 use Illuminate\Auth\GuardHelpers;
 use Illuminate\Auth\SessionGuard;
-use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Traits\Macroable;
-use oleanti\LaravelCognito\CognitoClient;
-use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
-use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
 use oleanti\LaravelCognito\Actions\GetUser;
+use oleanti\LaravelCognito\CognitoClient;
+use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
+use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use Symfony\Component\HttpFoundation\Request;
-
 
 class CognitoGuard extends SessionGuard implements StatefulGuard
 {
@@ -63,20 +62,22 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         } catch (NotAuthorizedException $e) {
             return false;
         }
-
+        if ($result instanceof RedirectResponse) {
+            return $result;
+        }
         if ($result && $user instanceof Authenticatable) {
             return true;
         }
-        if(!$user instanceof Authenticatable){
-            throw new NoLocalUserException();
+        if (! $user instanceof Authenticatable) {
+            throw new NoLocalUserException;
         }
 
         return false;
     }
-/**
+
+    /**
      * Attempt to authenticate a user using the given credentials.
      *
-     * @param  array  $credentials
      * @param  bool  $remember
      * @return bool
      */
@@ -87,20 +88,18 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         //$this->lastAttempted = $user = $this->provider->retrieveByCredentials($credentials);
         $this->lastAttempted = $user = GetUser::retrieveByCredentials($credentials, $this->provider);
 
-        // If an implementation of UserInterface was returned, we'll ask the provider
-        // to validate the user against the given credentials, and if they are in
-        // fact valid we'll log the users into the application and return true.
-        if ($this->hasValidCredentials($user, $credentials)) {
+        $attempt = $this->hasValidCredentials($user, $credentials);
+        if ($attempt === true) {
             $this->login($user, $remember);
 
             return true;
+        } elseif ($attempt === false) {
+            $this->fireFailedEvent($user, $credentials);
+
+            return false;
         }
 
-        // If the authentication attempt fails we will fire an event so that the user
-        // may be notified of any suspicious attempts to access their account from
-        // an unrecognized user. A developer may listen to this event as needed.
-        $this->fireFailedEvent($user, $credentials);
+        return $attempt;
 
-        return false;
-    }       
+    }
 }
