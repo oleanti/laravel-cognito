@@ -18,6 +18,7 @@ use oleanti\LaravelCognito\Exceptions\SessionExpired;
 use oleanti\LaravelCognito\Exceptions\UserCodeInvalid;
 use oleanti\LaravelCognito\Exceptions\UserNotConfirmedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
+use oleanti\LaravelCognito\Exceptions\OtpAlreadyUsed;
 
 class CognitoClient
 {
@@ -551,8 +552,16 @@ class CognitoClient
                     if ($e->getAwsErrorMessage() == 'Invalid session for the user, session is expired.') {
                         throw new SessionExpired($e->getAwsErrorMessage());
                     }
+                    throw $e;
+                    break;
                 case 'CodeMismatchException':
                     throw new UserCodeInvalid($e->getAwsErrorMessage());
+                    break;
+                case 'ExpiredCodeException':
+                    if($e->getAwsErrorMessage() == 'Your software token has already been used once.'){
+                        throw new OtpAlreadyUsed($e->getAwsErrorMessage());
+                    }
+                    throw $e;
                     break;
                 default:
                     throw $e;
