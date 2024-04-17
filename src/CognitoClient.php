@@ -4,8 +4,6 @@ namespace oleanti\LaravelCognito;
 
 use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\CognitoIdentityProvider\Exception\CognitoIdentityProviderException;
-use Aws\Token\Token;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use oleanti\LaravelCognito\Exceptions\AccessDeniedException;
 use oleanti\LaravelCognito\Exceptions\AccessTokenExpired;
@@ -614,24 +612,40 @@ class CognitoClient
 
     public function verifySoftwareToken($otp)
     {
-        $payload = [
-            'AccessToken' => $this->getAccessToken(),
-            'UserCode' => $otp,
-        ];
-        $verify = $this->client->VerifySoftwareToken($payload);
-        $payload = [
-            'SMSMfaSettings' => [
-                'Enabled' => false,
-                'PreferredMfa' => false,
-            ],
-            'SoftwareTokenMfaSettings' => [
-                'Enabled' => true,
-                'PreferredMfa' => true,
-            ],
-            'AccessToken' => $this->getAccessToken(),
-        ];
-        $this->client->SetUserMFAPreference($payload);
+        try {
+            $payload = [
+                'AccessToken' => $this->getAccessToken(),
+                'UserCode' => $otp,
+            ];
+            $verify = $this->client->VerifySoftwareToken($payload);
+            $payload = [
+                'SMSMfaSettings' => [
+                    'Enabled' => false,
+                    'PreferredMfa' => false,
+                ],
+                'SoftwareTokenMfaSettings' => [
+                    'Enabled' => true,
+                    'PreferredMfa' => true,
+                ],
+                'AccessToken' => $this->getAccessToken(),
+            ];
+            $this->client->SetUserMFAPreference($payload);
+    
+            return $verify;
+        } catch (CognitoIdentityProviderException $e){       
+            switch ($e->getAwsErrorCode()) {
+                case 'EnableSoftwareTokenMFAException':
+                    if ($e->getAwsErrorMessage() == 'Code mismatch') {
+                        throw new UserCodeInvalid();
+                    }                    
+                    throw $e;
+                    break;
 
-        return $verify;
+                default:
+                    throw $e;
+            } 
+        } catch (\InvalidArgumentException $e) {
+            throw new InvalidPassword($e->getMessage());
+        }
     }
 }
