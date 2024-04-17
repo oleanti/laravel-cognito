@@ -589,11 +589,27 @@ class CognitoClient
 
     public function associateSoftwareToken()
     {
-        $payload = [
-            'AccessToken' => $this->getAccessToken(),
-        ];
-
-        return $this->client->AssociateSoftwareToken($payload);
+        try{
+            $payload = [
+                'AccessToken' => $this->getAccessToken(),
+            ];
+    
+            return $this->client->AssociateSoftwareToken($payload);
+        } catch (CognitoIdentityProviderException $e){            
+            switch ($e->getAwsErrorCode()) {
+                case 'NotAuthorizedException':
+                    if ($e->getAwsErrorMessage() == 'Access Token has expired') {
+                        throw new AccessTokenExpired();
+                    }                    
+                    throw new NotAuthorizedException();
+                    break;
+                case 'NEW_PASSWORD_REQUIRED':
+                    throw $e;
+                    break;
+                default:
+                    throw $e;
+            }
+        }
     }
 
     public function verifySoftwareToken($otp)
