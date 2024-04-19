@@ -637,10 +637,11 @@ class CognitoClient
                 case 'EnableSoftwareTokenMFAException':
                     if ($e->getAwsErrorMessage() == 'Code mismatch') {
                         throw new UserCodeInvalid();
-                    }                    
+                    }elseif ($e->getAwsErrorMessage() == 'Your software token has already been used once.') {
+                        throw new OtpAlreadyUsed($e->getAwsErrorMessage());
+                    }
                     throw $e;
                     break;
-
                 default:
                     throw $e;
             } 
