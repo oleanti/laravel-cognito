@@ -248,6 +248,7 @@ class CognitoClient
             'UserPoolId' => $this->poolId,
             'MessageAction' => 'SUPPRESS',
             'Username' => $username,
+            'UserAttributes' => $userAttributes,
         ];
         $result = $this->client->AdminCreateUser($parameters);
 
