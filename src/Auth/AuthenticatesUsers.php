@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
+use oleanti\LaravelCognito\Exceptions\LimitExceededException;
+use Illuminate\Http\Response;
 
 trait AuthenticatesUsers
 {
@@ -44,7 +46,13 @@ trait AuthenticatesUsers
 
             return $this->sendLockoutResponse($request);
         }
-        $attempt = $this->attemptLogin($request);
+        try{
+            $attempt = $this->attemptLogin($request);
+        }catch(LimitExceededException $e){
+            $this->fireLockoutEvent($request);
+            return $this->sendLockoutResponse($request);
+        }
+        
 
         if ($attempt === true) {
             if ($request->hasSession()) {
@@ -231,5 +239,25 @@ trait AuthenticatesUsers
         $user->save();
 
         return $user;
+    }
+
+    /**
+     * Redirect the user after determining they are locked out.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    protected function sendLockoutResponse(Request $request)
+    {
+        $seconds = 900; // 15 minutes is the cognito default
+
+        throw ValidationException::withMessages([
+            $this->username() => [trans('auth.throttle', [
+                'seconds' => $seconds,
+                'minutes' => ceil($seconds / 60),
+            ])],
+        ])->status(Response::HTTP_TOO_MANY_REQUESTS);
     }
 }

@@ -159,11 +159,20 @@ class CognitoClient
     {
         $username = $credentials['email'];
         $password = $credentials['password'];
+        $redirect = $credentials['redirect'] ?? null;
         try {
             $result = $this->initiateauth($username, $password);
         } catch (CognitoIdentityProviderException $e) {
+            
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
+            if($e->getAwsErrorMessage() == 'Password attempts exceeded'){
+                throw new LimitExceededException($e->getAwsErrorMessage());
+            }
+            if($e->getAwsErrorMessage() == 'Incorrect username or password.'){
+                throw new InvalidPassword($e->getAwsErrorMessage());
+            }            
             switch ($e->getAwsErrorCode()) {
+                
                 case 'NotAuthorizedException':
                     throw new NotAuthorizedException($username);
                     break;
@@ -186,7 +195,11 @@ class CognitoClient
             $storage = new $class;
             $storage->set($result->toArray());
 
-            return redirect(route(config('cognito.routes.mfa_challenge')));
+            $route = route(config('cognito.routes.mfa_challenge'));
+            if ($redirect !== null) {
+                return redirect($route . '?redirect=' . urlencode($redirect));
+            }
+            return redirect($route);
         }
 
         return false;
@@ -529,21 +542,33 @@ class CognitoClient
         return session('cognito.CodeDeliveryDetails');
     }
 
-    public function respondToTokenChallange($otp, $username, $session)
+    public function respondToTokenChallange($type, $otp, $username, $session)
     {
+        if($type === 'SOFTWARE_TOKEN_MFA'){
+            $challengetype = 'SOFTWARE_TOKEN_MFA_CODE';
+        }elseif($type === 'SMS_MFA'){
+            $challengetype = 'SMS_MFA_CODE';
+        }elseif($type === 'EMAIL_OTP'){
+            $challengetype = 'EMAIL_OTP_CODE';
+        }
         $payload = [
-            'ChallengeName' => 'SOFTWARE_TOKEN_MFA',
+            'ChallengeName' => $type,
             'ClientId' => $this->clientId,
             'Session' => $session,
             'ChallengeResponses' => [
                 'USERNAME' => $username,
-                'SOFTWARE_TOKEN_MFA_CODE' => $otp,
+                $challengetype => $otp,
                 'SECRET_HASH' => $this->getSecretHash($username),
             ],
         ];
+        
         try {
             $response = $this->client->RespondToAuthChallenge($payload);
-
+            if (isset($response['AuthenticationResult'])) {
+                $this->authenticationResult = $response['AuthenticationResult'];                
+                $this->storeAccessToken();               
+            }
+            
             return $response;
         } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
@@ -572,6 +597,10 @@ class CognitoClient
     public function disableMfa($username)
     {
         $payload = [
+            'EmailMfaSettings' => [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ],
             'SMSMfaSettings' => [
                 'Enabled' => false,
                 'PreferredMfa' => false,
@@ -619,18 +648,6 @@ class CognitoClient
                 'UserCode' => $otp,
             ];
             $verify = $this->client->VerifySoftwareToken($payload);
-            $payload = [
-                'SMSMfaSettings' => [
-                    'Enabled' => false,
-                    'PreferredMfa' => false,
-                ],
-                'SoftwareTokenMfaSettings' => [
-                    'Enabled' => true,
-                    'PreferredMfa' => true,
-                ],
-                'AccessToken' => $this->getAccessToken(),
-            ];
-            $this->client->SetUserMFAPreference($payload);
     
             return $verify;
         } catch (CognitoIdentityProviderException $e){       
@@ -648,6 +665,56 @@ class CognitoClient
             } 
         } catch (\InvalidArgumentException $e) {
             throw new InvalidPassword($e->getMessage());
+        }
+    }
+    public function setMFAPreferences($preferedMfa, $emailEnabled = false, $smsEnabled = false, $totpEnabled = false)
+    {        
+        $payload = [
+            'EmailMfaSettings' => [
+                'Enabled' => $emailEnabled,
+                'PreferredMfa' => ($preferedMfa == 'EMAIL_OTP' ? true : false),
+            ],
+            'SMSMfaSettings' => [
+                'Enabled' => $smsEnabled,
+                'PreferredMfa' => ($preferedMfa == 'SMS_MFA' ? true : false),
+            ],
+            'SoftwareTokenMfaSettings' => [
+                'Enabled' => $totpEnabled,
+                'PreferredMfa' => ($preferedMfa == 'SOFTWARE_TOKEN_MFA' ? true : false),
+            ],
+            'AccessToken' => $this->getAccessToken(),
+        ];
+        $this->client->SetUserMFAPreference($payload);
+    }
+    public function setMFAPreference($payload)
+    {
+        $payload['AccessToken'] = $this->getAccessToken();
+        $this->client->SetUserMFAPreference($payload);
+    }
+    public function disableSoftwareTokenMfa()
+    {
+        $payload = [
+            'SoftwareTokenMfaSettings' => [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ],
+            'AccessToken' => $this->getAccessToken(),
+        ];
+        $this->client->SetUserMFAPreference($payload);
+    }
+    public function getMfaSettings()
+    {
+        try{
+            $payload = [
+                'AccessToken' => $this->getAccessToken(),
+            ];
+            $response = $this->client->GetUserAuthFactors($payload);
+            return $response->toArray();
+        }catch(CognitoIdentityProviderException $e){
+            if ($e->getAwsErrorMessage() == 'Access Token has expired') {
+                throw new AccessTokenExpired;
+            }
+            throw $e;
         }
     }
 }
