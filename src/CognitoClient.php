@@ -568,7 +568,7 @@ class CognitoClient
                 $this->authenticationResult = $response['AuthenticationResult'];                
                 $this->storeAccessToken();               
             }
-            
+            request()->session()->put('cognito_challenge_type', $type);
             return $response;
         } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
