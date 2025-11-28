@@ -331,6 +331,7 @@ class CognitoClient
                     'UserPoolId' => $this->poolId,
                     'Username' => $username,
                 ]);
+                $this->adminConfirmSignUp($username);
             } catch (CognitoIdentityProviderException $e) {
                 switch ($e->getAwsErrorCode()) {
                     case 'AccessDeniedException':
@@ -353,7 +354,26 @@ class CognitoClient
 
         return $user;
     }
+    public function adminConfirmSignUp($username)
+    {
+        try {
+            return $this->client->adminConfirmSignUp([
+                'UserPoolId' => $this->poolId,
+                'Username' => $username,
+            ]);
+        } catch (CognitoIdentityProviderException $e) {
+            switch ($e->getAwsErrorCode()) {
+                case 'UserNotFoundException':
+                    throw new UserNotFoundException($username);
+                    break;
+                case 'AccessDeniedException':
+                    throw new AccessDeniedException($e->getAwsErrorMessage());
+                default:
+                    throw $e;
+            }
 
+        }
+    }
     public function adminUpdateUserAttributes($username, $attributes)
     {
         try {
