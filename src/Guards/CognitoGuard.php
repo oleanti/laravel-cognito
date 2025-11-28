@@ -25,6 +25,7 @@ use oleanti\LaravelCognito\Exceptions\NoLocalUserException;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\InvalidPassword;
 use Symfony\Component\HttpFoundation\Request;
+use Illuminate\Support\Facades\Log;
 
 class CognitoGuard extends SessionGuard implements StatefulGuard
 {
@@ -61,8 +62,10 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         try {
             $result = $this->client->authenticate($credentials);
         } catch (InvalidPassword $e) {
+            Log::error($e);
             return false;        
         } catch (NotAuthorizedException $e) {
+            Log::error($e);
             return false;
         }
         if ($result instanceof RedirectResponse) {
