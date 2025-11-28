@@ -286,6 +286,7 @@ class CognitoClient
             $result = $this->client->signUp($parameters);
         } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
+                
                 case 'InvalidPasswordException':
                     throw ValidationException::withMessages([
                         'password' => [$e->getAwsErrorMessage()],
@@ -301,7 +302,7 @@ class CognitoClient
                 case 'InvalidParameterException':
                     throw ValidationException::withMessages([
                         'password' => $e->getAwsErrorMessage(),
-                    ]);                
+                    ]);
                 default:
                     throw $e;
             }
@@ -314,12 +315,16 @@ class CognitoClient
             $this->codeDeliveryDetails = $result['CodeDeliveryDetails'];
             $this->storeCodeDeliveryDetails();
         }
-        $user = Cognito::userModel()::create([
-            'name' => $attributes['name'],
+        $store = [            
             'email' => $username,
+            'cognito_uuid' => $result['UserSub'],
             'cognito_username' => $username,
             'cognito_verified_at' => $cognito_verified_at,
-        ]);
+        ];
+        if(isset($attributes['name'])){
+           $store['name'] = $attributes['name']; 
+        }
+        $user = Cognito::userModel()::create($store);
         if (config('cognito.autoconfirmusersignup') === true) {
             try {
                 $this->client->adminConfirmSignUp([
