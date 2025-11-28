@@ -239,7 +239,7 @@ class CognitoClient
             'UserPoolId' => $this->poolId,
         ];
         try {
-            $this->client->adminSetUserPassword($parameters);
+            return $this->client->adminSetUserPassword($parameters);
         } catch (CognitoIdentityProviderException $e) {
             if ($e->getAwsErrorCode() === 'UserNotFoundException') {
                 throw new UserNotFoundException($username);
