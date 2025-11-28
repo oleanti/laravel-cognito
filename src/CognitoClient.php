@@ -140,6 +140,7 @@ class CognitoClient
 
             return $result;
         } catch (CognitoIdentityProviderException $e) {
+            Log::info($e->getAwsErrorMessage());
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidParameterException':
