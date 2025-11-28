@@ -99,8 +99,6 @@ class CognitoClient
                 'Username' => $username,
                 'UserPoolId' => $this->poolId,
             ]);
-        } catch (CognitoIdentityProviderException $e) {
-            return false;
         } catch (\InvalidArgumentException $e) {
             if (str_contains($e->getMessage(), '[UserPoolId] is missing and is a required parameter')) {
                 throw new InvalidConfiguration('UserPoolId is missing and is a required parameter');
