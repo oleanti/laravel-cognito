@@ -288,7 +288,7 @@ class CognitoClient
             switch ($e->getAwsErrorCode()) {
                 case 'InvalidPasswordException':
                     throw ValidationException::withMessages([
-                        Cognito::username() => [$e->getAwsErrorMessage()],
+                        'password' => [$e->getAwsErrorMessage()],
                     ]);
                     break;
                 case 'UsernameExistsException':
@@ -298,6 +298,10 @@ class CognitoClient
                         ]),
                     ]);
                     break;
+                case 'InvalidParameterException':
+                    throw ValidationException::withMessages([
+                        'password' => $e->getAwsErrorMessage(),
+                    ]);                
                 default:
                     throw $e;
             }
