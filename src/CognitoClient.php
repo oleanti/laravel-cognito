@@ -17,6 +17,7 @@ use oleanti\LaravelCognito\Exceptions\UserCodeInvalid;
 use oleanti\LaravelCognito\Exceptions\UserNotConfirmedException;
 use oleanti\LaravelCognito\Exceptions\UserNotFoundException;
 use oleanti\LaravelCognito\Exceptions\OtpAlreadyUsed;
+use Illuminate\Support\Facades\Log;
 
 class CognitoClient
 {
@@ -161,7 +162,7 @@ class CognitoClient
         try {
             $result = $this->initiateauth($username, $password);
         } catch (CognitoIdentityProviderException $e) {
-            
+            Log::info($e->getAwsErrorMessage());
             // https://docs.aws.amazon.com/aws-sdk-php/v3/api/class-Aws.CognitoIdentityProvider.Exception.CognitoIdentityProviderException.html
             if($e->getAwsErrorMessage() == 'Password attempts exceeded'){
                 throw new LimitExceededException($e->getAwsErrorMessage());
