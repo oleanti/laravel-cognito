@@ -62,9 +62,11 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         try {
             $result = $this->client->authenticate($credentials);
         } catch (InvalidPassword $e) {
+            Log::info('InvalidPassword' , $e);
             Log::error($e);
-            return false;        
+            return false;
         } catch (NotAuthorizedException $e) {
+            Log::info('NotAuthorizedException' , $e);
             Log::error($e);
             return false;
         }
@@ -90,8 +92,6 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
     public function attempt(array $credentials = [], $remember = false)
     {
         $this->fireAttemptEvent($credentials, $remember);
-
-        //$this->lastAttempted = $user = $this->provider->retrieveByCredentials($credentials);
         $this->lastAttempted = $user = GetUser::retrieveByCredentials($credentials, $this->provider);
 
         $attempt = $this->hasValidCredentials($user, $credentials);
