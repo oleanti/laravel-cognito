@@ -225,7 +225,7 @@ class CognitoClient
             } elseif ($e->getAwsErrorCode() == 'LimitExceededException') {
                 throw new LimitExceededException($e->getAwsErrorMessage());
             } else {
-                dd($e->getAwsErrorCode());
+                throw $e;
             }
         }
 
