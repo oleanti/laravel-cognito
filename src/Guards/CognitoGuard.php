@@ -62,12 +62,8 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         try {
             $result = $this->client->authenticate($credentials);
         } catch (InvalidPassword $e) {
-            Log::info('InvalidPassword' , $e);
-            Log::error($e);
             return false;
         } catch (NotAuthorizedException $e) {
-            Log::info('NotAuthorizedException' , $e);
-            Log::error($e);
             return false;
         }
         if ($result instanceof RedirectResponse) {
