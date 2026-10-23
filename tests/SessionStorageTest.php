@@ -30,13 +30,15 @@ class SessionStorageTest extends AbstractTestCase
         ->andReturn([])
         ->once();
 
+        $stored = $accessResult + ['ExpiresAt' => $this->testNowTimestamp + 3600];
+
         $mockSession->shouldReceive('get')
         ->with('cognito.AuthenticationResult')
-        ->andReturn($accessResult)
+        ->andReturn($stored)
         ->once();
 
         $mockSession->shouldReceive('put')
-        ->with('cognito.AuthenticationResult', $accessResult)
+        ->with('cognito.AuthenticationResult', $stored)
         ->once();
 
         $mockedApp = Mockery::mock('alias:'.\Illuminate\Support\Facades\App::class);
@@ -49,7 +51,7 @@ class SessionStorageTest extends AbstractTestCase
         $awsToken = $authResult->getAwsToken();
         $awsRefreshToken = $authResult->getRefreshToken();
         $this->assertEquals($accessResult['AccessToken'], $awsToken->getToken());
-        $this->assertEquals($accessResult['ExpiresIn'], $awsToken->getExpiration());
+        $this->assertEquals($this->testNowTimestamp + 3600, $awsToken->getExpiration());
         $this->assertEquals($accessResult['RefreshToken'], $awsRefreshToken->getToken());
     }
 
@@ -65,6 +67,7 @@ class SessionStorageTest extends AbstractTestCase
         $accessResult['TokenType'] = 'bearer';
         $accessResult['RefreshToken'] = 'old';
         $accessResult['IdToken'] = 'old';
+        $accessResult['ExpiresAt'] = $this->testNowTimestamp + 3600;
 
         $newAccessResult = [];
         $newAccessResult['AccessToken'] = 'new';
@@ -90,7 +93,7 @@ class SessionStorageTest extends AbstractTestCase
         $awsToken = $authResult->getAwsToken();
         $awsRefreshToken = $authResult->getRefreshToken();
         $this->assertEquals($newAccessResult['AccessToken'], $awsToken->getToken());
-        $this->assertEquals($accessResult['ExpiresIn'], $awsToken->getExpiration());
+        $this->assertEquals($accessResult['ExpiresAt'], $awsToken->getExpiration());
         $this->assertEquals($accessResult['RefreshToken'], $awsRefreshToken->getToken());
     }
 }

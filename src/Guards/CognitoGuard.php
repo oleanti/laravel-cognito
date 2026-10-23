@@ -17,7 +17,7 @@ use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Http\RedirectResponse;
+use oleanti\LaravelCognito\AuthChallenge;
 use Illuminate\Support\Traits\Macroable;
 use oleanti\LaravelCognito\Actions\GetUser;
 use oleanti\LaravelCognito\CognitoClient;
@@ -66,7 +66,8 @@ class CognitoGuard extends SessionGuard implements StatefulGuard
         } catch (NotAuthorizedException $e) {
             return false;
         }
-        if ($result instanceof RedirectResponse) {
+        // MFA or another second step: the caller answers the challenge, nobody is logged in yet.
+        if ($result instanceof AuthChallenge) {
             return $result;
         }
         if ($result && $user instanceof Authenticatable) {

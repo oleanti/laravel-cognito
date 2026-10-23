@@ -15,6 +15,7 @@ class AuthResult
     // $accessResult['TokenType']
     // $accessResult['RefreshToken']
     // $accessResult['IdToken']
+    // $accessResult['ExpiresAt']  absolute unix time, added by the storage
     public function __construct(array $result)
     {
         $this->accessResult = $result;
@@ -27,7 +28,8 @@ class AuthResult
             throw new NoAccessTokenAvailable;
         }
 
-        return new Token($this->accessResult['AccessToken'], $this->accessResult['ExpiresIn']);
+        // Results stored before ExpiresAt existed count as expired, so they get refreshed.
+        return new Token($this->accessResult['AccessToken'], $this->accessResult['ExpiresAt'] ?? 0);
     }
 
     public function getRefreshToken(): Token

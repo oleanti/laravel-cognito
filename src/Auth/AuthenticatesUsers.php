@@ -2,6 +2,7 @@
 
 namespace oleanti\LaravelCognito\Auth;
 
+use oleanti\LaravelCognito\AuthChallenge;
 use Illuminate\Foundation\Auth\RedirectsUsers;
 use Illuminate\Foundation\Auth\ThrottlesLogins;
 use Illuminate\Http\JsonResponse;
@@ -67,10 +68,23 @@ trait AuthenticatesUsers
             $this->incrementLoginAttempts($request);
 
             return $this->sendFailedLoginResponse($request);
+        } elseif ($attempt instanceof AuthChallenge) {
+            return $this->sendChallengeResponse($request, $attempt);
         }
 
         return $attempt;
 
+    }
+
+    /**
+     * Cognito wants a second step (MFA, new password). Override to keep the challenge and show
+     * the code form; the default fails closed so nobody is logged in on the password alone.
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    protected function sendChallengeResponse(Request $request, AuthChallenge $challenge)
+    {
+        return $this->sendFailedLoginResponse($request);
     }
 
     /**

@@ -11,6 +11,7 @@ use oleanti\LaravelCognito\Exceptions\InvalidConfiguration;
 use oleanti\LaravelCognito\Exceptions\InvalidParameterException;
 use oleanti\LaravelCognito\Exceptions\InvalidPassword;
 use oleanti\LaravelCognito\Exceptions\LimitExceededException;
+use oleanti\LaravelCognito\Exceptions\NoAccessTokenAvailable;
 use oleanti\LaravelCognito\Exceptions\NotAuthorizedException;
 use oleanti\LaravelCognito\Exceptions\SessionExpired;
 use oleanti\LaravelCognito\Exceptions\UserCodeInvalid;
@@ -155,11 +156,14 @@ class CognitoClient
         }
     }
 
+    /**
+     * @return true|AuthChallenge|false true when tokens were stored, an AuthChallenge when Cognito
+     *                                  wants a second step (MFA, new password) before issuing tokens
+     */
     public function authenticate($credentials)
     {
         $username = $credentials['email'];
         $password = $credentials['password'];
-        $redirect = $credentials['redirect'] ?? null;
         try {
             $result = $this->initiateauth($username, $password);
         } catch (CognitoIdentityProviderException $e) {
@@ -191,15 +195,7 @@ class CognitoClient
             return true;
         }
         if (isset($result['ChallengeName'])) {
-            $class = config('cognito.accesstokenstorage');
-            $storage = new $class;
-            $storage->set($result->toArray());
-
-            $route = route(config('cognito.routes.mfa_challenge'));
-            if ($redirect !== null) {
-                return redirect($route . '?redirect=' . urlencode($redirect));
-            }
-            return redirect($route);
+            return AuthChallenge::fromResult($result, $username);
         }
 
         return false;
@@ -313,7 +309,8 @@ class CognitoClient
         $cognito_verified_at = null;
         if ((isset($result['data']['UserConfirmed']) && $result['data']['UserConfirmed']) || config('cognito.autoconfirmusersignup') === true) {
             $cognito_verified_at = now();
-        } elseif ($result['UserConfirmed'] === false) {
+        } elseif ($result['UserConfirmed'] === false && isset($result['CodeDeliveryDetails'])) {
+            // Only pools with auto-verified attributes send a confirmation code.
             $this->codeDeliveryDetails = $result['CodeDeliveryDetails'];
             $this->storeCodeDeliveryDetails();
         }
@@ -329,20 +326,9 @@ class CognitoClient
         $user = Cognito::userModel()::create($store);
         if (config('cognito.autoconfirmusersignup') === true) {
             try {
-                $this->client->adminConfirmSignUp([
-                    'UserPoolId' => $this->poolId,
-                    'Username' => $username,
-                ]);
                 $this->adminConfirmSignUp($username);
-            } catch (CognitoIdentityProviderException $e) {
-                switch ($e->getAwsErrorCode()) {
-                    case 'AccessDeniedException':
-                        throw new NotAuthorizedException($e->getAwsErrorMessage());
-                        break;
-                    default:
-                        return $e;
-
-                }
+            } catch (AccessDeniedException $e) {
+                throw new NotAuthorizedException($e->getMessage());
             }
         }
 
@@ -364,6 +350,10 @@ class CognitoClient
                 'Username' => $username,
             ]);
         } catch (CognitoIdentityProviderException $e) {
+            // Confirming an already confirmed user is a no-op, not an error.
+            if (str_contains((string) $e->getAwsErrorMessage(), 'Current status is CONFIRMED')) {
+                return null;
+            }
             switch ($e->getAwsErrorCode()) {
                 case 'UserNotFoundException':
                     throw new UserNotFoundException($username);
@@ -468,7 +458,9 @@ class CognitoClient
 
     public function refreshAccessToken()
     {
-        $username = auth()->user()->{config('cognito.username')};
+        // REFRESH_TOKEN_AUTH wants the SECRET_HASH of the Cognito username (the sub when e-mail is
+        // the sign-in alias), not the e-mail. The stored access token carries it as a claim.
+        $username = $this->cognitoUsernameFromAccessToken($this->getStoredAccessToken());
 
         $parameters = [
             'AuthFlow' => 'REFRESH_TOKEN_AUTH',
@@ -539,20 +531,46 @@ class CognitoClient
         session()->put('cognito.CodeDeliveryDetails', $this->codeDeliveryDetails);
     }
 
+    /**
+     * The current user's access token, refreshed with the refresh token when it has expired.
+     *
+     * @throws NoAccessTokenAvailable when this session never authenticated against Cognito
+     */
     public function getAccessToken()
     {
         $class = config('cognito.accesstokenstorage');
         $storage = new $class;
-        $authResult = $storage->get();
-        $token = $authResult->getAwsToken();
+        $token = $storage->get()->getAwsToken();
 
-        if ($token->isExpired() && false) {
+        if ($token->isExpired()) {
             $this->refreshAccessToken();
-            $result = $storage->get();
-            $token = $result->getAwsToken();
+            $token = $storage->get()->getAwsToken();
         }
 
         return $token->getToken();
+    }
+
+    private function getStoredAccessToken(): string
+    {
+        $class = config('cognito.accesstokenstorage');
+        $storage = new $class;
+
+        return $storage->get()->getAwsToken()->getToken();
+    }
+
+    /**
+     * Reads the `username` claim without verifying the signature: it only feeds the SECRET_HASH,
+     * and Cognito itself rejects a refresh token that does not belong to that user.
+     */
+    private function cognitoUsernameFromAccessToken(string $accessToken): string
+    {
+        $parts = explode('.', $accessToken);
+        $claims = isset($parts[1]) ? json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true) : null;
+        if (! is_array($claims) || ! isset($claims['username'])) {
+            throw new NoAccessTokenAvailable;
+        }
+
+        return $claims['username'];
     }
 
     public function getRefreshToken()
@@ -571,38 +589,54 @@ class CognitoClient
         return session('cognito.CodeDeliveryDetails');
     }
 
-    public function respondToTokenChallange($type, $otp, $username, $session)
+    /**
+     * Answers an MFA challenge from authenticate(). For SELECT_MFA_TYPE, $otp is the chosen
+     * challenge name (e.g. SOFTWARE_TOKEN_MFA) and the next AuthChallenge is returned.
+     *
+     * @param  bool  $storeTokens  false for callers without a session (API): tokens are not kept
+     * @return true|AuthChallenge
+     *
+     * @throws UserCodeInvalid|OtpAlreadyUsed|SessionExpired
+     */
+    public function respondToTokenChallange($type, $otp, $username, $session, bool $storeTokens = true)
     {
-        if($type === 'SOFTWARE_TOKEN_MFA'){
-            $challengetype = 'SOFTWARE_TOKEN_MFA_CODE';
-        }elseif($type === 'SMS_MFA'){
-            $challengetype = 'SMS_MFA_CODE';
-        }elseif($type === 'EMAIL_OTP'){
-            $challengetype = 'EMAIL_OTP_CODE';
-        }
+        $responseKey = match ($type) {
+            'SOFTWARE_TOKEN_MFA' => 'SOFTWARE_TOKEN_MFA_CODE',
+            'SMS_MFA' => 'SMS_MFA_CODE',
+            'EMAIL_OTP' => 'EMAIL_OTP_CODE',
+            'SELECT_MFA_TYPE' => 'ANSWER',
+            default => throw new \InvalidArgumentException("Unsupported challenge type {$type}"),
+        };
         $payload = [
             'ChallengeName' => $type,
             'ClientId' => $this->clientId,
             'Session' => $session,
             'ChallengeResponses' => [
                 'USERNAME' => $username,
-                $challengetype => $otp,
+                $responseKey => $otp,
                 'SECRET_HASH' => $this->getSecretHash($username),
             ],
         ];
-        
+
         try {
             $response = $this->client->RespondToAuthChallenge($payload);
             if (isset($response['AuthenticationResult'])) {
-                $this->authenticationResult = $response['AuthenticationResult'];                
-                $this->storeAccessToken();               
+                $this->authenticationResult = $response['AuthenticationResult'];
+                if ($storeTokens) {
+                    $this->storeAccessToken();
+                }
+
+                return true;
             }
-            request()->session()->put('cognito_challenge_type', $type);
-            return $response;
+            if (isset($response['ChallengeName'])) {
+                return AuthChallenge::fromResult($response, $username);
+            }
+
+            throw new NotAuthorizedException('Challenge answered without tokens or a next challenge');
         } catch (CognitoIdentityProviderException $e) {
             switch ($e->getAwsErrorCode()) {
                 case 'NotAuthorizedException':
-                    if ($e->getAwsErrorMessage() == 'Invalid session for the user, session is expired.') {
+                    if (str_contains((string) $e->getAwsErrorMessage(), 'Invalid session')) {
                         throw new SessionExpired($e->getAwsErrorMessage());
                     }
                     throw $e;
@@ -623,13 +657,12 @@ class CognitoClient
         }
     }
 
+    /**
+     * Admin call: turns every MFA factor off for the user (lost device, recovery code used).
+     */
     public function disableMfa($username)
     {
         $payload = [
-            'EmailMfaSettings' => [
-                'Enabled' => false,
-                'PreferredMfa' => false,
-            ],
             'SMSMfaSettings' => [
                 'Enabled' => false,
                 'PreferredMfa' => false,
@@ -641,7 +674,29 @@ class CognitoClient
             'Username' => $username,
             'UserPoolId' => $this->poolId,
         ];
+        // Email MFA only exists on the Essentials/Plus tiers; LITE pools reject the key.
+        if (config('cognito.email_mfa', false) === true) {
+            $payload['EmailMfaSettings'] = [
+                'Enabled' => false,
+                'PreferredMfa' => false,
+            ];
+        }
         $this->client->adminSetUserMFAPreference($payload);
+    }
+
+    /**
+     * Admin call: which MFA factors the user has enabled, without needing their access token.
+     *
+     * @return array{enabled: list<string>, preferred: ?string}
+     */
+    public function getMfaState($username): array
+    {
+        $user = $this->getUser($username);
+
+        return [
+            'enabled' => array_values($user['UserMFASettingList'] ?? []),
+            'preferred' => $user['PreferredMfaSetting'] ?? null,
+        ];
     }
 
     public function associateSoftwareToken()
@@ -697,12 +752,8 @@ class CognitoClient
         }
     }
     public function setMFAPreferences($preferedMfa, $emailEnabled = false, $smsEnabled = false, $totpEnabled = false)
-    {        
+    {
         $payload = [
-            'EmailMfaSettings' => [
-                'Enabled' => $emailEnabled,
-                'PreferredMfa' => ($preferedMfa == 'EMAIL_OTP' ? true : false),
-            ],
             'SMSMfaSettings' => [
                 'Enabled' => $smsEnabled,
                 'PreferredMfa' => ($preferedMfa == 'SMS_MFA' ? true : false),
@@ -713,6 +764,13 @@ class CognitoClient
             ],
             'AccessToken' => $this->getAccessToken(),
         ];
+        // Email MFA only exists on the Essentials/Plus tiers; LITE pools reject the key.
+        if ($emailEnabled || config('cognito.email_mfa', false) === true) {
+            $payload['EmailMfaSettings'] = [
+                'Enabled' => $emailEnabled,
+                'PreferredMfa' => ($preferedMfa == 'EMAIL_OTP' ? true : false),
+            ];
+        }
         $this->client->SetUserMFAPreference($payload);
     }
     public function setMFAPreference($payload)

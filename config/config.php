@@ -28,7 +28,6 @@ return [
         'phone_number' => App\Casts\UserPhone::class,
     ],
     'accesstokenstorage' => oleanti\LaravelCognito\AccessToken\SessionStorage::class,
-    'routes' => [
-        'mfa_challenge' => 'login.mfa',
-    ],
+    // Email MFA needs the Essentials/Plus feature plan; leave false on LITE pools.
+    'email_mfa' => false,
 ];

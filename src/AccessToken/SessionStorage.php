@@ -2,17 +2,22 @@
 
 namespace oleanti\LaravelCognito\AccessToken;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\App;
 use oleanti\LaravelCognito\Exceptions\NoAccessTokenAvailable;
 
 class SessionStorage implements AuthenticationResultStorageInterface
 {
-    protected static $cache = null;
+    /**
+     * Per instance, never static: under Octane a static copy would outlive the request and be
+     * merged into the next user's session.
+     */
+    protected ?AuthResult $cache = null;
 
     public function __construct($initalData = null)
     {
         if (is_array($initalData)) {
-            static::$cache = new AuthResult($initalData);
+            $this->cache = new AuthResult($initalData);
         }
     }
 
@@ -22,26 +27,26 @@ class SessionStorage implements AuthenticationResultStorageInterface
         if (! is_array($accessResult)) {
             throw new NoAccessTokenAvailable;
         }
-        static::$cache = new AuthResult($accessResult);
+        $this->cache = new AuthResult($accessResult);
 
-        return static::$cache;
+        return $this->cache;
     }
 
     public function set(array $result)
     {
-
-        $current = [];
-        $previousAuthResult = static::$cache;
-
-        if (is_null($previousAuthResult)) {
+        if (is_null($this->cache)) {
             try {
-                $previousAuthResult = $this->get();
-                $current = $previousAuthResult->getAccessResultArray();
+                $current = $this->get()->getAccessResultArray();
             } catch (NoAccessTokenAvailable $e) {
                 $current = [];
             }
         } else {
-            $current = $previousAuthResult->getAccessResultArray();
+            $current = $this->cache->getAccessResultArray();
+        }
+
+        // Cognito returns a relative lifetime; keep the absolute expiry next to it.
+        if (isset($result['ExpiresIn'])) {
+            $result['ExpiresAt'] = Carbon::now()->getTimestamp() + (int) $result['ExpiresIn'];
         }
 
         App::make('session')->put('cognito.AuthenticationResult', array_merge($current, $result));
@@ -54,6 +59,6 @@ class SessionStorage implements AuthenticationResultStorageInterface
 
     public function getCached()
     {
-        return static::$cache;
+        return $this->cache;
     }
 }
